@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UPS Transit Calculator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+        }
+        button {
+            background-color: #351c15;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            cursor: pointer;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        // UPS Service Class Definition
+        class UPSService {
+            static GROUND = { code: 'GND', name: 'UPS Ground' };
+            static THREE_DAY = { code: '3DS', name: 'UPS 3 Day Select' };
+            static TWO_DAY = { code: '2DA', name: 'UPS 2nd Day Air' };
+            static NEXT_DAY = { code: '1DA', name: 'UPS Next Day Air' };
+            static NEXT_DAY_EARLY = { code: '1DM', name: 'UPS Next Day Air Early' };
+            static NEXT_DAY_SAVER = { code: '1DP', name: 'UPS Next Day Air Saver' };
+
+            static getAllServices() {
+                return [
+                    this.GROUND,
+                    this.THREE_DAY,
+                    this.TWO_DAY,
+                    this.NEXT_DAY,
+                    this.NEXT_DAY_EARLY,
+                    this.NEXT_DAY_SAVER
+                ];
+            }
+        }
+    </script>
+
+    <!-- Calculator HTML -->
+    <div id="shipping-calculator" class="shipping-calculator">
+        <div class="shipping-form">
+            <div class="form-group">
+                <label for="originZip">From ZIP Code:</label>
+                <input type="text" id="originZip" value="18705" readonly>
+            </div>
+
+            <div class="form-group">
+                <label for="destinationZip">To ZIP Code:</label>
+                <input type="text" id="destinationZip" maxlength="5" pattern="\d*">
+            </div>
+
+            <div class="form-group">
+                <label for="service">Service Level:</label>
+                <select id="service">
+                    <!-- Options will be populated by JavaScript -->
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="shipDate">Ship Date:</label>
+                <input type="date" id="shipDate">
+            </div>
+
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="isResidential" checked>
+                    Residential Delivery
+                </label>
+            </div>
+
+            <button onclick="calculateShipping()">Calculate Transit Time</button>
+        </div>
+
+        <div id="result" class="shipping-result" style="display: none">
+            <!-- Results will be populated here -->
+        </div>
+    </div>
+
+    <style>
+    .shipping-calculator {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        font-family: Arial, sans-serif;
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+    }
+
+    .form-group input,
+    .form-group select {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+
+    button {
+        background-color: #351c15;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        width: 100%;
+    }
+
+    button:hover {
+        background-color: #4a2820;
+    }
+
+    .shipping-result {
+        margin-top: 20px;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+    </style>
+
+    <script>
+    // Initialize calculator
+    const calculator = new ShippingCalculator();
+
+    // Set minimum date to tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    document.getElementById('shipDate').min = tomorrow.toISOString().split('T')[0];
+    document.getElementById('shipDate').value = tomorrow.toISOString().split('T')[0];
+
+    // Populate service options
+    const serviceSelect = document.getElementById('service');
+    UPSService.getAllServices().forEach(service => {
+        const option = document.createElement('option');
+        option.value = service.code;
+        option.textContent = service.name;
+        serviceSelect.appendChild(option);
+    });
+
+    async function calculateShipping() {
+        const originZip = document.getElementById('originZip').value;
+        const destinationZip = document.getElementById('destinationZip').value;
+        const serviceCode = document.getElementById('service').value;
+        const shipDate = new Date(document.getElementById('shipDate').value);
+        const isResidential = document.getElementById('isResidential').checked;
+
+        try {
+            const result = await calculator.calculateTransitTime(
+                originZip,
+                destinationZip,
+                serviceCode,
+                shipDate,
+                isResidential
+            );
+
+            if (result) {
+                displayResult(result);
+            }
+        } catch (error) {
+            displayError(error);
+        }
+    }
+
+    function displayResult(result) {
+        const resultDiv = document.getElementById('result');
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `
+            <h3>Estimated Delivery</h3>
+            <p><strong>Location:</strong> ${result.destinationCity}, ${result.destinationState}</p>
+            <p><strong>Service Level:</strong> ${result.serviceLevelDescription}</p>
+            <p><strong>Transit Time:</strong> ${result.transitDays} business days</p>
+            <p><strong>Delivery:</strong> ${result.deliveryDate} (${result.deliveryDayOfWeek}) by ${formatTime(result.deliveryTime)}</p>
+        `;
+    }
+
+    function formatTime(time) {
+        const [hours, minutes] = time.split(':');
+        const period = hours >= 12 ? 'PM' : 'AM';
+        const hour12 = hours % 12 || 12;
+        return `${hour12}:${minutes} ${period}`;
+    }
+
+    function displayError(error) {
+        const resultDiv = document.getElementById('result');
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+    }
+    </script>
+</body>
+</html> 
